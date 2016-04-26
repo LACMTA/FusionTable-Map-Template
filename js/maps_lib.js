@@ -9,39 +9,32 @@
         this.searchRadius = options.searchRadius || 805; //in meters ~ 1/2 mile
 
         // the encrypted Table ID of your Fusion Table (found under File => About)
-        this.fusionTableId = options.fusionTableId || "",
+        this.fusionTableId = options.fusionTableId || "1tjmh-xaR3ClMRMZKTJq5kB5xwGz4NKAg7KLnVumG",
 
         // Found at https://console.developers.google.com/
         // Important! this key is for demonstration purposes. please register your own.
         this.googleApiKey = options.googleApiKey || "",
-        
+
         // name of the location column in your Fusion Table.
         // NOTE: if your location column name has spaces in it, surround it with single quotes
         // example: locationColumn:     "'my location'",
-        this.locationColumn = options.locationColumn || "geometry";
-        
+        this.locationColumn = options.locationColumn || "Geometry";
+
         // appends to all address searches if not present
-        this.locationScope = options.locationScope || "";
+        this.locationScope = options.locationScope || "los angeles";
 
         // zoom level when map is loaded (bigger is more zoomed in)
-        this.defaultZoom = options.defaultZoom || 11; 
+        this.defaultZoom = options.defaultZoom || 11;
 
         // center that your map defaults to
         this.map_centroid = new google.maps.LatLng(options.map_center[0], options.map_center[1]);
-        
+
         // marker image for your searched address
-        if (typeof options.addrMarkerImage !== 'undefined') {
-            if (options.addrMarkerImage != "")
-                this.addrMarkerImage = options.addrMarkerImage;
-            else
-                this.addrMarkerImage = ""
-        }
-        else
-            this.addrMarkerImage = "images/blue-pushpin.png"
+        this.addrMarkerImage = options.addrMarkerImage || 'images/blue-pushpin.png';
 
     	this.currentPinpoint = null;
     	$("#result_count").html("");
-        
+
         this.myOptions = {
             zoom: this.defaultZoom,
             center: this.map_centroid,
@@ -49,7 +42,7 @@
         };
         this.geocoder = new google.maps.Geocoder();
         this.map = new google.maps.Map($("#map_canvas")[0], this.myOptions);
-        
+
         // maintains map centerpoint for responsive design
         google.maps.event.addDomListener(self.map, 'idle', function () {
             self.calculateCenter();
@@ -62,11 +55,11 @@
         //reset filters
         $("#search_address").val(self.convertToPlainString($.address.parameter('address')));
         var loadRadius = self.convertToPlainString($.address.parameter('radius'));
-        if (loadRadius != "") 
+        if (loadRadius != "")
             $("#search_radius").val(loadRadius);
-        else 
+        else
             $("#search_radius").val(self.searchRadius);
-        
+
         $(":checkbox").prop("checked", "checked");
         $("#result_box").hide();
 
@@ -99,6 +92,7 @@
         self.fusionTable = self.searchrecords;
         self.searchrecords.setMap(map);
         self.getCount(whereClause);
+        self.getList(whereClause);
     };
 
 
@@ -132,16 +126,13 @@
                     else if (self.searchRadius >= 805) map.setZoom(15); // 1/2 mile
                     else if (self.searchRadius >= 400) map.setZoom(16); // 1/4 mile
                     else self.map.setZoom(17);
-
-                    if (self.addrMarkerImage != '') {
-                        self.addrMarker = new google.maps.Marker({
-                            position: self.currentPinpoint,
-                            map: self.map,
-                            icon: self.addrMarkerImage,
-                            animation: google.maps.Animation.DROP,
-                            title: address
-                        });
-                    }
+                    self.addrMarker = new google.maps.Marker({
+                        position: self.currentPinpoint,
+                        map: self.map,
+                        icon: self.addrMarkerImage,
+                        animation: google.maps.Animation.DROP,
+                        title: address
+                    });
                     var geoCondition = " AND ST_INTERSECTS(" + self.locationColumn + ", CIRCLE(LATLNG" + self.currentPinpoint.toString() + "," + self.searchRadius + "))";
                     callback(geoCondition);
                     self.drawSearchRadiusCircle(self.currentPinpoint);
@@ -161,7 +152,7 @@
         var address = $("#search_address").val();
         self.searchRadius = $("#search_radius").val();
         self.whereClause = self.locationColumn + " not equal to ''";
-        
+
         //-----custom filters-----
         //-----end of custom filters-----
 
@@ -211,7 +202,7 @@
         var circleOptions = {
             strokeColor: "#4b58a6",
             strokeOpacity: 0.3,
-            strokeWeight: 1,
+            strokeWeight: 2,
             fillColor: "#4b58a6",
             fillOpacity: 0.05,
             map: self.map,
@@ -232,7 +223,7 @@
         if (query_opts.where && query_opts.where != "") {
             queryStr.push(" WHERE " + query_opts.where);
         }
-        if (query_opts.groupBy && query_opts.groupBy != "") {
+        if (query_opts.groupBy && query_opts.roupBy != "") {
             queryStr.push(" GROUP BY " + query_opts.groupBy);
         }
         if (query_opts.orderBy && query_opts.orderBy != "") {
@@ -284,7 +275,7 @@
 
     MapsLib.prototype.displaySearchCount = function (json) {
         var self = this;
-        
+
         var numRows = 0;
         if (json["rows"] != null) {
             numRows = json["rows"][0];
@@ -298,7 +289,55 @@
         });
         $("#result_box").fadeIn();
     };
+MapsLib.prototype.getList = function(whereClause) {
+    var self = this;
+    // Rollin
+    var selectColumns = 'Stopnum, StopName, NumLines, All_DX_ACT, All_DX_ON, All_DX_OFF ';
 
+    self.query({
+      select: selectColumns,
+      where: whereClause
+    }, function(response) {
+      self.displayList(response);
+    });
+  },
+
+  MapsLib.prototype.displayList = function(json) {
+    var self = this;
+
+    var data = json['rows'];
+    var template = '';
+
+    var results = $('#results_list');
+    results.hide().empty(); //hide the existing list and empty it out first
+
+    if (data == null) {
+      //clear results list
+      results.append("<li><span class='lead'>No results found</span></li>");
+    }
+    else {
+      for (var row in data) {
+        template = "\
+          <div class='row-fluid item-list'>\
+            <div class='span12'>\
+              <strong>" + data[row][0] + "</strong>\
+              <br />\
+              " + data[row][1] + "\
+              <br />\
+              " + data[row][2] + "\
+              <br />\
+              " + data[row][3] + "\
+              <br />\
+              " + data[row][4] + "\
+              <br />\
+              " + data[row][5] + "\
+            </div>\
+          </div>";
+        results.append(template);
+      }
+    }
+    results.fadeIn();
+  },
     MapsLib.prototype.addCommas = function (nStr) {
         nStr += '';
         x = nStr.split('.');
@@ -325,11 +364,11 @@
 
     MapsLib.prototype.clearSearch = function () {
         var self = this;
-        if (self.searchrecords && self.searchrecords.getMap) 
+        if (self.searchrecords && self.searchrecords.getMap)
             self.searchrecords.setMap(null);
-        if (self.addrMarker && self.addrMarker.getMap) 
+        if (self.addrMarker && self.addrMarker.getMap)
             self.addrMarker.setMap(null);
-        if (self.searchRadiusCircle && self.searchRadiusCircle.getMap) 
+        if (self.searchRadiusCircle && self.searchRadiusCircle.getMap)
             self.searchRadiusCircle.setMap(null);
     };
 
